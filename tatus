@@ -1,9 +1,0 @@
-warning: in the working copy of 'app/Services/AppointmentService.php', CRLF will be replaced by LF the next time Git touches it
-warning: in the working copy of 'database/migrations/2026_09_12_000001_create_appointments_and_events_tables.php', CRLF will be replaced by LF the next time Git touches it
- app/Models/Appointment.php                         |  15 [32m+[m[31m-[m
- app/Models/AppointmentEvent.php                    |  13 [32m+[m[31m-[m
- app/Services/AppointmentService.php                | 748 [32m++++++[m[31m---------------[m
- app/Services/AvailabilityService.php               |  13 [32m+[m[31m-[m
- app/Services/CustomerRestrictionService.php        |   8 [32m+[m
- ...00001_create_appointments_and_events_tables.php |  17 [32m+[m[31m-[m
- 6 files changed, 266 insertions(+), 548 deletions(-)
