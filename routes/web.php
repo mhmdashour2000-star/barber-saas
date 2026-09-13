@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Company\DashboardController as CompanyDashboardController;
 use App\Http\Controllers\Company\EmployeeController;
+use App\Http\Controllers\Company\AppointmentController;
 use App\Http\Controllers\Company\SettingsController as CompanySettingsController;
 use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,14 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 |--------------------------------------------------------------------------
 */
 Route::middleware(['company'])->prefix('company')->name('company.')->group(function () {
+    // Appointment management deliberately has no creation, editing, or deletion routes.
+    Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
+    Route::get('/appointments/{appointment}', [AppointmentController::class, 'show'])->whereNumber('appointment')->name('appointments.show');
+    Route::patch('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->whereNumber('appointment')->name('appointments.reschedule');
+    Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])->whereNumber('appointment')->name('appointments.cancel');
+    Route::post('/appointments/{appointment}/complete', [AppointmentController::class, 'complete'])->whereNumber('appointment')->name('appointments.complete');
+    Route::post('/appointments/{appointment}/no-show', [AppointmentController::class, 'noShow'])->whereNumber('appointment')->name('appointments.no-show');
+
     Route::get('/dashboard', [CompanyDashboardController::class, 'index'])->name('dashboard');
     Route::get('/settings', [CompanySettingsController::class, 'edit'])->name('settings.edit');
     Route::match(['put', 'patch'], '/settings', [CompanySettingsController::class, 'update'])->name('settings.update');

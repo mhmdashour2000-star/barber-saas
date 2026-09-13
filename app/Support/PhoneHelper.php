@@ -18,15 +18,18 @@ class PhoneHelper
             return null;
         }
 
-        // Strip non-digit characters except leading plus if any
-        $cleaned = preg_replace('/[^\d+]/', '', trim($phone));
-
-        if (empty($cleaned)) {
+        $trimmed = trim($phone);
+        $digitsOnly = preg_replace('/[^0-9]/', '', $trimmed);
+        if ($digitsOnly === '') {
             return null;
         }
-
-        // If it starts with '+', remove it temporarily for length inspection
-        $digitsOnly = ltrim($cleaned, '+');
+        // Explicit international prefixes take precedence over Turkish local-format inference.
+        if (str_starts_with($trimmed, '+')) {
+            return '+'.$digitsOnly;
+        }
+        if (str_starts_with($digitsOnly, '00')) {
+            return '+'.substr($digitsOnly, 2);
+        }
 
         // Turkish 10-digit number without leading 0 or country code: 5XXXXXXXXX
         if (strlen($digitsOnly) === 10 && str_starts_with($digitsOnly, '5')) {

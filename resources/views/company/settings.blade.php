@@ -267,6 +267,22 @@
             </div>
         </div>
 
+        <section class="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 class="text-lg font-semibold">WhatsApp bookings</h2>
+            <p class="mt-1 text-sm text-gray-500">Configure your salon number. Live WhatsApp messaging is not connected yet.</p>
+            <input type="hidden" name="whatsapp_enabled" value="0">
+            <label class="mt-4 flex items-center gap-2">
+                <input type="checkbox" name="whatsapp_enabled" value="1" @checked(old('whatsapp_enabled', $company->whatsapp_enabled))>
+                <span>Enable WhatsApp bookings</span>
+            </label>
+            @error('whatsapp_enabled')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+            <label for="whatsapp_phone_number" class="mt-4 block text-sm font-medium">Salon WhatsApp number</label>
+            <input id="whatsapp_phone_number" name="whatsapp_phone_number" type="tel" maxlength="30"
+                   value="{{ old('whatsapp_phone_number', $company->whatsapp_phone_number) }}" placeholder="+90 555 123 4567"
+                   class="mt-2 w-full rounded-lg border border-gray-300 p-2.5">
+            @error('whatsapp_phone_number')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+        </section>
+
         <!-- Submit & Actions Bar -->
         <div class="flex items-center justify-end space-x-3 pt-2">
             <a href="{{ route('company.dashboard') }}" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:ring-gray-200 transition">

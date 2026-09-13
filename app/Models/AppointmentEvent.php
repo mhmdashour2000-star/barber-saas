@@ -9,13 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AppointmentEvent extends Model
 {
     /**
-     * This model uses only created_at (no updated_at) to keep events immutable.
+     * History has only created_at; model hooks below reject normal updates/deletes.
      */
     public $timestamps = false;
 
     protected $fillable = [
         'appointment_id',
-        'company_id',
         'type',
         'actor_type',
         'actor_id',
@@ -30,6 +29,16 @@ class AppointmentEvent extends Model
             'metadata' => 'array',
             'created_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (): void {
+            throw new \LogicException('Appointment events are immutable.');
+        });
+        static::deleting(function (): void {
+            throw new \LogicException('Appointment events cannot be deleted.');
+        });
     }
 
     public function appointment(): BelongsTo

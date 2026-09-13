@@ -49,6 +49,17 @@ class Appointment extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::updating(function (self $appointment): void {
+            foreach (array_keys($appointment->getDirty()) as $field) {
+                if (str_ends_with($field, '_snapshot') || in_array($field, ['company_id', 'customer_id', 'service_id', 'booking_code'], true)) {
+                    throw new \LogicException('Booking identity and snapshots are immutable.');
+                }
+            }
+        });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Relationships
@@ -77,7 +88,7 @@ class Appointment extends Model
 
     public function events(): HasMany
     {
-        return $this->hasMany(AppointmentEvent::class)->orderBy('created_at');
+        return $this->hasMany(AppointmentEvent::class)->orderBy('created_at')->orderBy('id');
     }
 
     /*
@@ -104,7 +115,7 @@ class Appointment extends Model
 
     /**
      * Check if this appointment can be rescheduled.
-     * Only confirmed (non-terminal), future appointments can be rescheduled.
+     * Only confirmed appointments can be rescheduled; the service validates the new time.
      */
     public function canBeRescheduled(): bool
     {

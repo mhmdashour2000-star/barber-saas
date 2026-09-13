@@ -28,6 +28,8 @@ class Company extends Model
         'late_cancellation_hours',
         'violation_limit',
         'block_duration_days',
+        'whatsapp_enabled',
+        'whatsapp_phone_number',
     ];
 
     /**
@@ -38,11 +40,24 @@ class Company extends Model
     protected function casts(): array
     {
         return [
+            'whatsapp_enabled' => 'boolean',
             'booking_days_ahead' => 'integer',
             'late_cancellation_hours' => 'integer',
             'violation_limit' => 'integer',
             'block_duration_days' => 'integer',
         ];
+    }
+
+    protected $hidden = ['whatsapp_phone_number_id', 'whatsapp_business_account_id'];
+
+    public function whatsappConversations(): HasMany
+    {
+        return $this->hasMany(WhatsappConversation::class);
+    }
+
+    public function whatsappInboundMessages(): HasMany
+    {
+        return $this->hasMany(WhatsappInboundMessage::class);
     }
 
     public function manager(): BelongsTo

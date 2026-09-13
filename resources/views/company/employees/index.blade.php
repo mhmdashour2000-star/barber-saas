@@ -38,9 +38,8 @@
     @endif
 
     <!-- One-Time Credentials Display Card -->
-    @if(session('new_employee_credentials'))
+    @if($creds)
         @php
-            $creds = session('new_employee_credentials');
             $allDetails = "Salon Login Information\n\nCompany Code: {$creds['company_code']}\nUsername: {$creds['username']}\nTemporary Password: {$creds['password']}";
         @endphp
         <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-8 shadow-sm">
@@ -56,7 +55,7 @@
                         <p class="text-xs text-blue-800 font-medium">New credentials generated for <span class="font-bold">{{ $creds['name'] }}</span>.</p>
                     </div>
                 </div>
-                <button type="button" onclick="copyText(`{{ addslashes($allDetails) }}`, this)"
+                <button type="button" onclick="copyText({{ Illuminate\Support\Js::from($allDetails) }}, this)"
                         class="inline-flex items-center justify-center px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition">
                     <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
@@ -71,7 +70,7 @@
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Company Code</span>
                     <div class="my-2 flex items-baseline justify-between">
                         <span class="font-mono text-base font-bold text-blue-700">{{ $creds['company_code'] }}</span>
-                        <button type="button" onclick="copyText('{{ $creds['company_code'] }}', this)"
+                        <button type="button" onclick="copyText({{ Illuminate\Support\Js::from($creds['company_code']) }}, this)"
                                 class="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded transition">
                             Copy Company Code
                         </button>
@@ -83,7 +82,7 @@
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Username</span>
                     <div class="my-2 flex items-baseline justify-between">
                         <span class="font-mono text-base font-bold text-gray-900">{{ $creds['username'] }}</span>
-                        <button type="button" onclick="copyText('{{ $creds['username'] }}', this)"
+                        <button type="button" onclick="copyText({{ Illuminate\Support\Js::from($creds['username']) }}, this)"
                                 class="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded transition">
                             Copy Username
                         </button>
@@ -95,7 +94,7 @@
                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Temporary Password</span>
                     <div class="my-2 flex items-baseline justify-between">
                         <span class="font-mono text-base font-bold text-gray-900">{{ $creds['password'] }}</span>
-                        <button type="button" onclick="copyText('{{ addslashes($creds['password']) }}', this)"
+                        <button type="button" onclick="copyText({{ Illuminate\Support\Js::from($creds['password']) }}, this)"
                                 class="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded transition">
                             Copy Password
                         </button>

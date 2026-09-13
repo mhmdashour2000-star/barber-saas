@@ -19,7 +19,7 @@ class EmployeeController extends Controller
     /**
      * Display a listing of employees for the authenticated company.
      */
-    public function index(Request $request): View
+    public function index(Request $request): \Illuminate\Http\Response
     {
         $company = $request->user()->company;
 
@@ -47,7 +47,10 @@ class EmployeeController extends Controller
 
         $employees = $query->paginate(15)->withQueryString();
 
-        return view('company.employees.index', compact('employees', 'company'));
+        $creds = \App\Support\TemporaryEmployeeCredentials::consume($request);
+
+        return response()->view('company.employees.index', compact('employees', 'company', 'creds'))
+            ->header('Cache-Control', 'private, no-store, max-age=0');
     }
 
     /**
@@ -101,12 +104,12 @@ class EmployeeController extends Controller
         return redirect()
             ->route('company.employees.index')
             ->with('status', 'Employee created successfully.')
-            ->with('new_employee_credentials', [
+            ->with('new_employee_credentials', \App\Support\TemporaryEmployeeCredentials::encrypt($request, [
                 'name' => $employee->name,
                 'company_code' => $company->code,
                 'username' => $employee->username,
                 'password' => $validated['password'],
-            ]);
+            ]));
     }
 
     /**

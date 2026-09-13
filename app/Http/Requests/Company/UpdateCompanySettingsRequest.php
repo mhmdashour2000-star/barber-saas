@@ -21,9 +21,21 @@ class UpdateCompanySettingsRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('whatsapp_phone_number') && is_string($this->input('whatsapp_phone_number'))) {
+            $this->merge(['whatsapp_phone_number' => \App\Support\PhoneHelper::normalize($this->input('whatsapp_phone_number'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
+            'whatsapp_enabled' => ['sometimes', 'boolean'],
+            'whatsapp_phone_number' => ['nullable', 'required_if:whatsapp_enabled,1', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/D',
+                \Illuminate\Validation\Rule::unique('companies', 'whatsapp_phone_number')->ignore($this->user()->company?->id)],
+            'whatsapp_phone_number_id' => ['prohibited'],
+            'whatsapp_business_account_id' => ['prohibited'],
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:500'],

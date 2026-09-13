@@ -18,6 +18,7 @@ class CustomerBlock extends Model
         'customer_id',
         'reason',
         'source',
+        'violation_cursor_id',
         'starts_at',
         'ends_at',
         'lifted_at',

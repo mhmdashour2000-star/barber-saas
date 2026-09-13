@@ -29,7 +29,15 @@ class StoreAvailabilityExceptionRequest extends FormRequest
                     AvailabilityException::TYPE_EMPLOYEE,
                 ]),
             ],
-            'date' => ['required', 'date', 'after_or_equal:today'],
+            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.now(\App\Services\AvailabilityService::TIMEZONE)->toDateString(),
+                Rule::unique('availability_exceptions', 'date')->where(function ($query) use ($companyId) {
+                    $query->where('company_id', $companyId)->where('type', $this->input('type'));
+                    if ($this->input('type') === 'service') {
+                        $query->where('service_id', $this->input('service_id'));
+                    } elseif ($this->input('type') === 'employee') {
+                        $query->where('employee_id', $this->input('employee_id'));
+                    }
+                })],
             'is_closed' => ['required', 'boolean'],
             'reason' => ['nullable', 'string', 'max:255'],
             'service_id' => [
@@ -53,6 +61,9 @@ class StoreAvailabilityExceptionRequest extends FormRequest
     public function withValidator($validator)
     {
         $validator->after(function ($validator) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
             $isClosed = $this->boolean('is_closed');
             $windows = $this->input('windows', []);
 

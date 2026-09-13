@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Support\LoginThrottle;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -31,30 +32,25 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        LoginThrottle::ensureAllowed($request);
+        $credentials['email'] = \Illuminate\Support\Str::lower(trim($credentials['email']));
         $remember = $request->boolean('remember');
 
-        if (Auth::attempt($credentials, $remember)) {
+        if (Auth::attempt($credentials + ['role' => User::ROLE_SYSTEM_ADMIN], $remember)) {
             /** @var User $user */
             $user = Auth::user();
 
-            if (!$user->isSystemAdmin()) {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                return back()->withErrors([
-                    'email' => 'Access denied. You must be a System Administrator to access this portal.',
-                ])->onlyInput('email');
-            }
-
+            LoginThrottle::clear($request);
             $request->session()->regenerate();
             AuditLog::record('admin.login', 'System Admin logged in to control panel.', $user->id);
 
             return redirect()->intended(route('admin.dashboard'));
         }
 
+        LoginThrottle::failed($request);
+
         return back()->withErrors([
-            'email' => 'Invalid credentials provided.',
+            'email' => 'The provided credentials do not match our records.',
         ])->onlyInput('email');
     }
 

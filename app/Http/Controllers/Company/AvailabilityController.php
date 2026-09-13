@@ -54,29 +54,35 @@ class AvailabilityController extends Controller
 
         $validated = $request->validated();
 
-        DB::transaction(function () use ($company, $validated) {
-            /** @var AvailabilityException $exception */
-            $exception = $company->availabilityExceptions()->create([
-                'type' => $validated['type'],
-                'date' => $validated['date'],
-                'is_closed' => $validated['is_closed'],
-                'reason' => $validated['reason'] ?? null,
-                'service_id' => $validated['type'] === AvailabilityException::TYPE_SERVICE ? ($validated['service_id'] ?? null) : null,
-                'employee_id' => $validated['type'] === AvailabilityException::TYPE_EMPLOYEE ? ($validated['employee_id'] ?? null) : null,
-            ]);
+        try {
+            DB::transaction(function () use ($company, $validated) {
+                /** @var AvailabilityException $exception */
+                $exception = $company->availabilityExceptions()->create([
+                    'type' => $validated['type'],
+                    'date' => $validated['date'],
+                    'is_closed' => $validated['is_closed'],
+                    'reason' => $validated['reason'] ?? null,
+                    'service_id' => $validated['type'] === AvailabilityException::TYPE_SERVICE ? ($validated['service_id'] ?? null) : null,
+                    'employee_id' => $validated['type'] === AvailabilityException::TYPE_EMPLOYEE ? ($validated['employee_id'] ?? null) : null,
+                ]);
 
-            // Save custom windows if not fully closed
-            if (!$validated['is_closed'] && !empty($validated['windows'])) {
-                foreach ($validated['windows'] as $window) {
-                    if (!empty($window['start_time']) && !empty($window['end_time'])) {
-                        $exception->windows()->create([
-                            'start_time' => $window['start_time'],
-                            'end_time' => $window['end_time'],
-                        ]);
+                // Save custom windows if not fully closed
+                if (!$validated['is_closed'] && !empty($validated['windows'])) {
+                    foreach ($validated['windows'] as $window) {
+                        if (!empty($window['start_time']) && !empty($window['end_time'])) {
+                            $exception->windows()->create([
+                                'start_time' => $window['start_time'],
+                                'end_time' => $window['end_time'],
+                            ]);
+                        }
                     }
                 }
-            }
-        });
+            });
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'date' => 'An exception already exists for this target and date.',
+            ]);
+        }
 
         AuditLog::record(
             'availability.exception.created',

@@ -13,6 +13,18 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerRestrictionService
 {
+    /** Booking eligibility belongs here; appointment callers must supply a tenant-scoped customer. */
+    public function assertCanBook(Customer $customer): void
+    {
+        DB::transaction(function () use ($customer) {
+            $customer = $this->lockCustomer($customer);
+            // A locking read sees committed blocks even inside an older MySQL snapshot.
+            if (!$customer->active || $this->activeBlocks($customer)->first()) {
+                throw new \InvalidArgumentException('This customer is inactive or currently blocked and cannot book appointments.');
+            }
+        }, 3);
+    }
+
     /**
      * Reusable upsert method for customer identity by phone within a company.
      * Prevents duplicates and normalizes phone numbers.
@@ -44,28 +56,33 @@ class CustomerRestrictionService
             }
 
             return $customer;
-        });
+        }, 3);
     }
 
     /**
      * Get the count of qualifying violations for the current cycle.
-     * Semantics: Violations that occurred AFTER the most recent automatic block was created.
+     * New blocks use a violation ID watermark; historical blocks retain their timestamp cutoff.
      * If no automatic block exists yet, all historical violations count.
      */
     public function getActiveViolationCount(Customer $customer): int
     {
         $latestAutoBlock = $customer->blocks()
             ->where('source', CustomerBlock::SOURCE_AUTOMATIC)
-            ->latest('starts_at')
-            ->first();
+            ->latest('starts_at')->latest('id')
+            ->lockForUpdate()->first();
 
         $query = $customer->violations();
 
         if ($latestAutoBlock) {
-            $query->where('occurred_at', '>', $latestAutoBlock->starts_at);
+            if ($latestAutoBlock->violation_cursor_id !== null) {
+                $query->where('id', '>', $latestAutoBlock->violation_cursor_id);
+            } else {
+                // Preserve the cutoff for historical blocks created before the cursor existed.
+                $query->where('occurred_at', '>', $latestAutoBlock->starts_at);
+            }
         }
 
-        return $query->count();
+        return $query->lockForUpdate()->get(['id'])->count();
     }
 
     /**
@@ -82,6 +99,15 @@ class CustomerRestrictionService
         $now = Carbon::now();
 
         return DB::transaction(function () use ($company, $customer, $type, $reason, $appointmentId, $userId, $now) {
+            $customer = $this->lockCustomer($customer);
+            if ($appointmentId !== null) {
+                $company->appointments()->where('customer_id', $customer->id)->findOrFail($appointmentId);
+                $existing = $customer->violations()->where('appointment_id', $appointmentId)
+                    ->where('type', $type)->lockForUpdate()->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
             /** @var CustomerViolation $violation */
             $violation = $company->customerViolations()->create([
                 'customer_id' => $customer->id,
@@ -104,12 +130,12 @@ class CustomerRestrictionService
             $limit = $company->violation_limit ?? 3;
 
             // If threshold reached and customer does not already have an active block, create automatic block
-            if ($currentCount >= $limit && !$customer->isBlocked()) {
+            if ($currentCount >= $limit && !$this->activeBlocks($customer)->first()) {
                 $this->createAutomaticBlock($customer, $currentCount, $userId);
             }
 
             return $violation;
-        });
+        }, 3);
     }
 
     /**
@@ -117,29 +143,40 @@ class CustomerRestrictionService
      */
     public function createAutomaticBlock(Customer $customer, int $violationCount, ?int $userId = null): CustomerBlock
     {
-        $company = $customer->company;
-        $now = Carbon::now();
-        $durationDays = $company->block_duration_days ?? 7;
-        $endsAt = $now->copy()->addDays($durationDays);
+        return DB::transaction(function () use ($customer, $userId) {
+            $customer = $this->lockCustomer($customer);
+            if ($existing = $this->activeBlocks($customer)->first()) {
+                return $existing;
+            }
+            $violationCount = $this->getActiveViolationCount($customer);
+            if ($violationCount < ($customer->company->violation_limit ?? 3)) {
+                throw new \InvalidArgumentException('The automatic block threshold has not been reached.');
+            }
+            $company = $customer->company;
+            $now = Carbon::now();
+            $durationDays = $company->block_duration_days ?? 7;
+            $endsAt = $now->copy()->addDays($durationDays);
 
-        /** @var CustomerBlock $block */
-        $block = $company->customerBlocks()->create([
-            'customer_id' => $customer->id,
-            'reason' => "Automatic block: reached limit of {$company->violation_limit} violations ({$violationCount} recorded in current cycle).",
-            'source' => CustomerBlock::SOURCE_AUTOMATIC,
-            'starts_at' => $now,
-            'ends_at' => $endsAt,
-            'created_by_user_id' => $userId,
-        ]);
+            /** @var CustomerBlock $block */
+            $block = $company->customerBlocks()->create([
+                'customer_id' => $customer->id,
+                'reason' => "Automatic block: reached limit of {$company->violation_limit} violations ({$violationCount} recorded in current cycle).",
+                'source' => CustomerBlock::SOURCE_AUTOMATIC,
+                'violation_cursor_id' => $customer->violations()->lockForUpdate()->orderByDesc('id')->value('id'),
+                'starts_at' => $now,
+                'ends_at' => $endsAt,
+                'created_by_user_id' => $userId,
+            ]);
 
-        AuditLog::record(
-            'customer.automatic_block.created',
-            "Customer '{$customer->name}' automatically blocked until {$endsAt->format('Y-m-d H:i')}.",
-            $userId,
-            $company->id
-        );
+            AuditLog::record(
+                'customer.automatic_block.created',
+                "Customer '{$customer->name}' automatically blocked until {$endsAt->format('Y-m-d H:i')}.",
+                $userId,
+                $company->id
+            );
 
-        return $block;
+            return $block;
+        }, 3);
     }
 
     /**
@@ -152,6 +189,11 @@ class CustomerRestrictionService
         $endsAt = $durationDays ? $now->copy()->addDays($durationDays) : null;
 
         return DB::transaction(function () use ($company, $customer, $reason, $endsAt, $now, $userId) {
+            $customer = $this->lockCustomer($customer);
+            // Deterministic policy: retain the existing active block and its original expiry/reason.
+            if ($existing = $this->activeBlocks($customer)->first()) {
+                return $existing;
+            }
             /** @var CustomerBlock $block */
             $block = $company->customerBlocks()->create([
                 'customer_id' => $customer->id,
@@ -170,7 +212,7 @@ class CustomerRestrictionService
             );
 
             return $block;
-        });
+        }, 3);
     }
 
     /**
@@ -178,25 +220,31 @@ class CustomerRestrictionService
      */
     public function manualUnblock(Customer $customer, ?int $userId = null): bool
     {
-        $company = $customer->company;
-        $activeBlock = $customer->activeBlock();
+        return DB::transaction(function () use ($customer, $userId) {
+            $customer = $this->lockCustomer($customer);
+            $blocks = $this->activeBlocks($customer)->get();
+            if ($blocks->isEmpty()) {
+                return false;
+            }
+            foreach ($blocks as $block) {
+                $block->update(['lifted_at' => Carbon::now(), 'lifted_by_user_id' => $userId]);
+            }
+            AuditLog::record('customer.unblocked', "All active blocks for customer '{$customer->name}' were lifted.",
+                $userId, $customer->company_id);
 
-        if (!$activeBlock) {
-            return false;
-        }
+            return true;
+        }, 3);
+    }
 
-        $activeBlock->update([
-            'lifted_at' => Carbon::now(),
-            'lifted_by_user_id' => $userId,
-        ]);
+    private function lockCustomer(Customer $customer): Customer
+    {
+        return $customer->company->customers()->lockForUpdate()->findOrFail($customer->id);
+    }
 
-        AuditLog::record(
-            'customer.unblocked',
-            "Customer '{$customer->name}' manual block was lifted.",
-            $userId,
-            $company->id
-        );
-
-        return true;
+    private function activeBlocks(Customer $customer)
+    {
+        return $customer->blocks()->whereNull('lifted_at')->where('starts_at', '<=', now())
+            ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>', now()))
+            ->orderByDesc('starts_at')->orderByDesc('id')->lockForUpdate();
     }
 }

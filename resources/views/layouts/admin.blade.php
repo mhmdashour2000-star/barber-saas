@@ -16,7 +16,7 @@
         <div class="h-full px-4 sm:px-6 flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <!-- Mobile Menu Button (Drawer Toggle) -->
-                <button id="mobile-sidebar-toggle" type="button"
+                <button id="mobile-sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="false"
                         class="lg:hidden p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200">
                     <span class="sr-only">Open mobile sidebar</span>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +80,7 @@
         <div class="p-3">
             <div class="lg:hidden flex items-center justify-between pb-3 mb-2 border-b border-gray-100">
                 <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Navigation</span>
-                <button id="mobile-sidebar-close" type="button" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg">
+                <button id="mobile-sidebar-close" type="button" aria-label="Close sidebar" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -181,6 +181,8 @@
             const storageKey = 'sidebar-collapsed-admin';
 
             let isCollapsed = localStorage.getItem(storageKey) === 'true';
+            // Translated-offscreen navigation must not remain in the keyboard tab order.
+            sidebar.inert = window.innerWidth < 1024;
 
             function applyDesktopState() {
                 if (window.innerWidth >= 1024) {
@@ -209,12 +211,19 @@
             }
 
             function openMobile() {
+                sidebar.inert = false;
+                toggleMobileBtn.setAttribute('aria-expanded', 'true');
                 sidebar.classList.remove('-translate-x-full');
                 sidebar.classList.add('translate-x-0');
                 backdrop.classList.remove('hidden');
+                closeMobileBtn?.focus();
             }
 
             function closeMobile() {
+                const restoreFocus = window.innerWidth < 1024 && sidebar.contains(document.activeElement);
+                sidebar.inert = window.innerWidth < 1024;
+                toggleMobileBtn.setAttribute('aria-expanded', 'false');
+                if (restoreFocus) toggleMobileBtn.focus();
                 sidebar.classList.add('-translate-x-full');
                 sidebar.classList.remove('translate-x-0');
                 backdrop.classList.add('hidden');
@@ -224,12 +233,16 @@
             if (toggleMobileBtn) toggleMobileBtn.addEventListener('click', openMobile);
             if (closeMobileBtn) closeMobileBtn.addEventListener('click', closeMobile);
             if (backdrop) backdrop.addEventListener('click', closeMobile);
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && window.innerWidth < 1024) closeMobile();
+            });
 
             window.addEventListener('resize', function() {
                 if (window.innerWidth >= 1024) {
                     closeMobile();
                     applyDesktopState();
                 } else {
+                    sidebar.inert = sidebar.classList.contains('-translate-x-full');
                     sidebar.classList.remove('w-20');
                     sidebar.classList.add('w-64');
                     sidebarTexts.forEach(el => el.classList.remove('lg:hidden'));

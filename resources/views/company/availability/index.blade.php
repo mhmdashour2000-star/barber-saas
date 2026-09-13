@@ -88,13 +88,14 @@
                             <label for="date" class="block mb-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                                 Date <span class="text-red-500">*</span>
                             </label>
-                            <input type="date" id="date" name="date" min="{{ date('Y-m-d') }}" value="{{ old('date', date('Y-m-d')) }}" required
+                            <input type="date" id="date" name="date" min="{{ now(\App\Services\AvailabilityService::TIMEZONE)->toDateString() }}" value="{{ old('date', now(\App\Services\AvailabilityService::TIMEZONE)->toDateString()) }}" required
                                    class="block w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                         </div>
 
                         <!-- Full Day Closed Toggle -->
                         <div class="mb-4">
                             <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="hidden" name="is_closed" value="0">
                                 <input type="checkbox" id="is_closed" name="is_closed" value="1"
                                        {{ old('is_closed', '1') == '1' ? 'checked' : '' }}
                                        onchange="handleClosedToggle(this.checked)" class="sr-only peer">
@@ -111,11 +112,11 @@
                             </label>
                             <div id="exception-windows-container" class="space-y-2">
                                 <div class="flex items-center space-x-2 exc-window-row">
-                                    <input type="time" name="windows[0][start_time]" value="10:00"
-                                           class="text-xs p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="time" name="windows[0][start_time]" value="{{ is_string(old('windows.0.start_time')) ? old('windows.0.start_time') : '10:00' }}" aria-label="Special hours start"
+                                           class="min-w-0 w-full text-xs p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                                     <span class="text-xs text-gray-400">to</span>
-                                    <input type="time" name="windows[0][end_time]" value="14:00"
-                                           class="text-xs p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="time" name="windows[0][end_time]" value="{{ is_string(old('windows.0.end_time')) ? old('windows.0.end_time') : '14:00' }}" aria-label="Special hours end"
+                                           class="min-w-0 w-full text-xs p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                                 </div>
                             </div>
                         </div>

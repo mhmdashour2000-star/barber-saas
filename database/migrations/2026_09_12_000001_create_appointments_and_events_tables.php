@@ -21,6 +21,7 @@ return new class extends Migration
 
             $table->string('booking_code', 12)->unique();
 
+            // All appointment instants are stored as UTC, at second precision.
             $table->dateTime('starts_at');
             $table->dateTime('ends_at');
 
@@ -42,14 +43,14 @@ return new class extends Migration
             $table->timestamps();
 
             // Foreign keys
-            $table->foreign('company_id')->references('id')->on('companies')->onDelete('cascade');
-            $table->foreign('customer_id')->references('id')->on('customers')->onDelete('cascade');
-            $table->foreign('service_id')->references('id')->on('services')->onDelete('cascade');
-            $table->foreign('employee_id')->references('id')->on('employees')->onDelete('cascade');
+            $table->foreign('company_id')->references('id')->on('companies')->onDelete('restrict');
+            $table->foreign('customer_id')->references('id')->on('customers')->onDelete('restrict');
+            $table->foreign('service_id')->references('id')->on('services')->onDelete('restrict');
+            $table->foreign('employee_id')->references('id')->on('employees')->onDelete('restrict');
 
             // Composite indexes for efficient queries
             $table->index(['company_id', 'starts_at']);
-            $table->index(['employee_id', 'starts_at']);
+            $table->index(['company_id', 'employee_id', 'status', 'starts_at'], 'appointments_slot_lookup');
             $table->index(['employee_id', 'ends_at']);
             $table->index(['customer_id', 'starts_at']);
             $table->index(['company_id', 'status']);
@@ -68,11 +69,11 @@ return new class extends Migration
 
             $table->json('metadata')->nullable();
 
-            $table->timestamp('created_at')->useCurrent();
+            $table->dateTime('created_at'); // Explicit UTC instant supplied by the service.
 
             // Foreign keys
-            $table->foreign('appointment_id')->references('id')->on('appointments')->onDelete('cascade');
-            $table->foreign('company_id')->references('id')->on('companies')->onDelete('cascade');
+            $table->foreign('appointment_id')->references('id')->on('appointments')->onDelete('restrict');
+            $table->foreign('company_id')->references('id')->on('companies')->onDelete('restrict');
 
             // Indexes
             $table->index('appointment_id');
