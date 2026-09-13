@@ -28,6 +28,7 @@ Route::withoutMiddleware([
 |--------------------------------------------------------------------------
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::view('/privacy-policy', 'public.privacy-policy')->name('privacy-policy');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');

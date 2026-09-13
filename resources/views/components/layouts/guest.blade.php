@@ -15,7 +15,7 @@
     <!-- Header / Navbar -->
     <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
+            <div class="flex min-h-16 flex-wrap items-center justify-between gap-y-2 py-2">
                 <div class="flex items-center space-x-3">
                     <a href="{{ route('home') }}" class="flex items-center space-x-2 text-xl font-bold text-gray-900 tracking-tight">
                         <span class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600 text-white font-extrabold shadow-sm">
@@ -78,7 +78,8 @@
                     <span class="text-base font-bold text-gray-900">Barbar<span class="text-blue-600">SaaS</span></span>
                     <span class="text-xs text-gray-400 ml-2">Barber Salon Appointment Platform</span>
                 </div>
-                <div class="mt-4 md:mt-0 flex space-x-6 text-sm text-gray-500">
+                <div class="mt-4 md:mt-0 flex flex-wrap gap-x-6 gap-y-3 text-sm text-gray-500">
+                    <a href="{{ route('privacy-policy') }}" class="hover:text-gray-900">Privacy Policy</a>
                     <a href="{{ route('login') }}" class="hover:text-gray-900">Salon Login</a>
                     <a href="{{ route('register') }}" class="hover:text-gray-900">Salon Register</a>
                     <a href="{{ route('admin.login') }}" class="hover:text-gray-900 text-gray-400">System Admin</a>

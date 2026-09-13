@@ -9,6 +9,26 @@ class PublicPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_privacy_policy_is_public_and_contains_policy_information(): void
+    {
+        $this->assertGuest();
+        $response = $this->get('/privacy-policy');
+
+        $response->assertOk()
+            ->assertSee('<h1 id="privacy-title"', false)
+            ->assertSee('Privacy Policy')
+            ->assertSee('Last updated: September 2026')
+            ->assertSee('Meta WhatsApp Cloud API')
+            ->assertSee('Access, correction and deletion requests')
+            ->assertSee('Placeholder — verified privacy contact email to be added');
+        $this->assertGuest();
+    }
+
+    public function test_public_footer_links_to_privacy_policy(): void
+    {
+        $this->get('/')->assertOk()->assertSee('href="'.route('privacy-policy').'"', false);
+    }
+
     public function test_public_home_page_loads_with_correct_scope(): void
     {
         $response = $this->get('/');
