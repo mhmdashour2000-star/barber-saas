@@ -269,7 +269,7 @@
 
         <section class="rounded-xl border border-gray-200 bg-white p-6">
             <h2 class="text-lg font-semibold">WhatsApp bookings</h2>
-            <p class="mt-1 text-sm text-gray-500">Configure your salon number. Live WhatsApp messaging is not connected yet.</p>
+            <p class="mt-1 text-sm text-gray-500">Provider configuration: {{ app(\App\Whatsapp\Meta\Configuration::class)->complete($company) ? 'Complete — live connectivity has not been verified here.' : 'Incomplete — contact your system administrator.' }}</p>
             <input type="hidden" name="whatsapp_enabled" value="0">
             <label class="mt-4 flex items-center gap-2">
                 <input type="checkbox" name="whatsapp_enabled" value="1" @checked(old('whatsapp_enabled', $company->whatsapp_enabled))>

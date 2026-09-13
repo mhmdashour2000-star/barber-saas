@@ -18,6 +18,23 @@
         </div>
     </div>
 
+    @php
+        $waInbound = $company->whatsappInboundMessages()->max('received_at');
+        $waOutbound = $company->whatsappOutboundMessages()->latest('id')->first();
+        $waError = $company->whatsappOutboundMessages()->whereNotNull('last_error_summary')->latest('updated_at')->first();
+    @endphp
+    <section class="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">WhatsApp diagnostics</h2>
+        <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt class="text-gray-500">Enabled</dt><dd>{{ $company->whatsapp_enabled ? 'Yes' : 'No' }}</dd></div>
+            <div><dt class="text-gray-500">Number</dt><dd>{{ $company->whatsapp_phone_number ?? 'Not configured' }}</dd></div>
+            <div><dt class="text-gray-500">Provider configuration</dt><dd>{{ app(\App\Whatsapp\Meta\Configuration::class)->complete($company) ? 'Complete (not a connectivity check)' : 'Incomplete' }}</dd></div>
+            <div><dt class="text-gray-500">Last inbound (UTC)</dt><dd>{{ $waInbound ?? 'None' }}</dd></div>
+            <div><dt class="text-gray-500">Last outbound</dt><dd>{{ $waOutbound?->status ?? 'None' }} {{ $waOutbound?->delivery_status }}</dd></div>
+            <div><dt class="text-gray-500">Last delivery issue</dt><dd>{{ $waError?->last_error_summary ?? 'None' }}</dd></div>
+        </dl>
+    </section>
+
     <!-- Company Information Grid (Read-Only Inspection) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <!-- Company Identity Card -->

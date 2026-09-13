@@ -12,6 +12,16 @@ use App\Http\Controllers\Company\SettingsController as CompanySettingsController
 use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
 
+// Stateless provider transport only. CSRF protection remains enabled for every management route.
+Route::withoutMiddleware([
+    \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+])->group(function () {
+    Route::get('/webhooks/whatsapp/meta', [\App\Http\Controllers\Webhooks\MetaWhatsappController::class, 'verify'])->name('webhooks.whatsapp.meta.verify');
+    Route::post('/webhooks/whatsapp/meta', [\App\Http\Controllers\Webhooks\MetaWhatsappController::class, 'receive'])->name('webhooks.whatsapp.meta.receive');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Public SaaS Website & Authentication Routes

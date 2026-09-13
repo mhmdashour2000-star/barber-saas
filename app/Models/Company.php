@@ -55,6 +55,11 @@ class Company extends Model
         return $this->hasMany(WhatsappConversation::class);
     }
 
+    public function whatsappOutboundMessages(): HasMany
+    {
+        return $this->hasMany(WhatsappOutboundMessage::class);
+    }
+
     public function whatsappInboundMessages(): HasMany
     {
         return $this->hasMany(WhatsappInboundMessage::class);

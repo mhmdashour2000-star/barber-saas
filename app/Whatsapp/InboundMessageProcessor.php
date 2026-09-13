@@ -11,34 +11,40 @@ class InboundMessageProcessor
 {
     public function __construct(private ConversationEngine $engine, private CustomerRestrictionService $customers) {}
 
+    /** Persist identity and deduplication without running the conversation. */
+    public function receive(InboundMessage $input): ?int
+    {
+        return DB::transaction(function () use ($input) {
+            $company = Company::query()->lockForUpdate()->findOrFail($input->company->id);
+            if (!$company->whatsapp_enabled) {
+                return null;
+            }
+            $existing = $company->whatsappInboundMessages()->where('provider', $input->provider)
+                ->where('external_message_id', $input->externalMessageId)->first();
+            if ($existing) {
+                if (!hash_equals($existing->fingerprint, $input->fingerprint())) {
+                    throw new \InvalidArgumentException('Message identity was reused with different content.');
+                }
+                return $existing->id;
+            }
+            $customer = $this->customers->findOrCreateCustomer($company, $input->customerPhone);
+            $company->whatsappConversations()->firstOrCreate(['customer_id' => $customer->id]);
+
+            return $company->whatsappInboundMessages()->create([
+                'customer_id' => $customer->id, 'provider' => $input->provider,
+                'external_message_id' => $input->externalMessageId, 'fingerprint' => $input->fingerprint(),
+                'message_type' => $input->messageType, 'received_at' => $input->receivedAt->utc(),
+            ])->id;
+        }, 3);
+    }
+
     public function handle(InboundMessage $input): ConversationResponse
     {
         $id = null;
         $revision = null;
         try {
             // Short bootstrap mutex only. Release it before taking scheduling/appointment locks.
-            $id = DB::transaction(function () use ($input) {
-                $company = Company::query()->lockForUpdate()->findOrFail($input->company->id);
-                if (!$company->whatsapp_enabled) {
-                    return null;
-                }
-                $existing = $company->whatsappInboundMessages()->where('provider', $input->provider)
-                    ->where('external_message_id', $input->externalMessageId)->first();
-                if ($existing) {
-                    if (!hash_equals($existing->fingerprint, $input->fingerprint())) {
-                        throw new \InvalidArgumentException('Message identity was reused with different content.');
-                    }
-                    return $existing->id;
-                }
-                $customer = $this->customers->findOrCreateCustomer($company, $input->customerPhone);
-                $company->whatsappConversations()->firstOrCreate(['customer_id' => $customer->id]);
-
-                return $company->whatsappInboundMessages()->create([
-                    'customer_id' => $customer->id, 'provider' => $input->provider,
-                    'external_message_id' => $input->externalMessageId, 'fingerprint' => $input->fingerprint(),
-                    'message_type' => $input->messageType, 'received_at' => $input->receivedAt->utc(),
-                ])->id;
-            }, 3);
+            $id = $this->receive($input);
             if ($id === null) {
                 return new ConversationResponse('text', 'WhatsApp booking is not enabled for this salon.');
             }
