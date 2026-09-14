@@ -47,10 +47,15 @@ class ConversationEngine
         }
 
         $action = $this->selectedAction($conversation, $message);
-        if ($action === null) {
-            return $this->repeat($conversation, 'Please choose one of the current options, or send menu to restart.');
-        }
         try {
+            if ($action === null) {
+                if ($state === State::SELECT_TIME) {
+                    $context = $this->context($conversation);
+                    return $this->times($conversation, $this->service($company, $context), $context,
+                        'Please choose a current available time, or send menu to restart. ');
+                }
+                return $this->repeat($conversation, 'Please choose one of the current options, or send menu to restart.');
+            }
             return match ($state) {
                 State::MAIN_MENU, State::INQUIRY_MENU, State::BOOKING_COMPLETE => $this->mainAction($conversation, $customer, $company, $action),
                 State::SELECT_SERVICE => $this->selectService($conversation, $company, $action),
@@ -127,7 +132,7 @@ class ConversationEngine
         return $this->days($c, $service, $context);
     }
 
-    private function days(WhatsappConversation $c, Service $service, array $context): ConversationResponse
+    private function days(WhatsappConversation $c, Service $service, array $context, string $prefix = ''): ConversationResponse
     {
         $choices = [];
         $today = Carbon::now(AvailabilityService::TIMEZONE)->startOfDay();
@@ -137,15 +142,16 @@ class ConversationEngine
                 $choices['day:'.$day->toDateString()] = $day->format('D d M');
             }
         }
-        unset($context['day'], $context['time']);
-        return $choices ? $this->respond($c, State::SELECT_DAY, 'Choose a day (Istanbul time).', $choices, $context)
-            : $this->menu($c, 'No available times within this salon’s booking horizon.');
+        unset($context['day'], $context['time'], $context['time_page'], $context['offer']);
+        return $choices ? $this->respond($c, State::SELECT_DAY, $prefix.'Choose a day (Istanbul time).', $choices, $context)
+            : $this->menu($c, $prefix.'No available times within this salon’s booking horizon.');
     }
 
     private function selectDay(WhatsappConversation $c, Company $company, string $action): ConversationResponse
     {
         $context = $this->context($c);
         $context['day'] = str_starts_with($action, 'day:') ? substr($action, 4) : '';
+        $context['time_page'] = 0;
         $service = $this->service($company, $context);
         $this->day($context);
         return $this->times($c, $service, $context);
@@ -154,25 +160,44 @@ class ConversationEngine
     private function times(WhatsappConversation $c, Service $service, array $context, string $prefix = ''): ConversationResponse
     {
         $slots = $this->availability->getBookableSlots($service, $this->day($context), $context['employee_id']);
-        unset($context['time']);
+        unset($context['time'], $context['offer']);
         if ($slots === []) {
-            return $this->days($c, $service, $context);
+            return $this->days($c, $service, $context, $prefix);
         }
-        return $this->respond($c, State::SELECT_TIME, $prefix.'Choose a time (Istanbul).',
-            array_combine(array_map(fn ($s) => 'time:'.$s, $slots), $slots), $context);
+        $page = $context['time_page'] ?? 0;
+        if (!is_int($page) || $page < 0) throw new InvalidArgumentException('Invalid time page.');
+        // A small, provider-neutral choice page; reserve two choices for navigation when needed.
+        $pageSize = count($slots) <= 10 ? 10 : 8;
+        $pageCount = (int) ceil(count($slots) / $pageSize);
+        $page = min($page, $pageCount - 1);
+        $context['time_page'] = $page;
+        $visible = array_slice($slots, $page * $pageSize, $pageSize);
+        $choices = array_combine(array_map(fn ($s) => 'time:'.$s, $visible), $visible);
+        if ($page > 0) $choices['time_page:previous'] = 'Previous times';
+        if ($page + 1 < $pageCount) $choices['time_page:next'] = 'More times';
+        $pageLabel = $pageCount > 1 ? ' Page '.($page + 1).' of '.$pageCount.'.' : '';
+        return $this->respond($c, State::SELECT_TIME, $prefix.'Choose a time (Europe/Istanbul).'.$pageLabel,
+            $choices, $context, ['title' => 'Available times'], 'list');
     }
 
     private function selectTime(WhatsappConversation $c, Customer $customer, Company $company, string $action): ConversationResponse
     {
         $context = $this->context($c);
         $service = $this->service($company, $context);
+        if (in_array($action, ['time_page:next', 'time_page:previous'], true)) {
+            $page = $context['time_page'] ?? 0;
+            if (!is_int($page) || $page < 0) throw new InvalidArgumentException('Invalid time page.');
+            $context['time_page'] = max(0, $page + ($action === 'time_page:next' ? 1 : -1));
+            return $this->times($c, $service, $context);
+        }
         $time = str_starts_with($action, 'time:') ? substr($action, 5) : '';
         if (!in_array($time, $this->availability->getBookableSlots($service, $this->day($context), $context['employee_id']), true)) {
-            return $this->times($c, $service, $context, 'That time is no longer free. ');
+            return $this->times($c, $service, $context, 'The selected time is no longer available. ');
         }
         $context['time'] = $time;
         $summary = ['customer_name' => $customer->name, 'service' => $service->name,
             'barber' => $context['employee_id'] === null ? 'Any Available Barber' : $company->employees()->findOrFail($context['employee_id'])->name,
+            'barber_assignment' => $context['employee_id'] === null ? 'on_confirmation' : 'selected',
             'date' => $context['day'], 'time' => $time, 'timezone' => AvailabilityService::TIMEZONE,
             'duration_minutes' => $service->duration_minutes, 'price_minor_units' => $service->price_minor_units];
         // Do not silently book a changed price/duration/name after the customer saw this confirmation.
@@ -218,11 +243,11 @@ class ConversationEngine
             } catch (InvalidArgumentException) {
                 return $this->menu($c, 'You cannot book while inactive or blocked. You can still view or cancel your appointments.');
             }
-            return $this->times($c, $service, $context, 'Booking could not be confirmed; the slot or your eligibility may have changed. ');
+            return $this->times($c, $service, $context, 'The selected time could not be booked and may no longer be available. Please choose again. ');
         }
 
         $this->auditSource($company, 'whatsapp.booking.created', $appointment->booking_code);
-        return $this->respond($c, State::BOOKING_COMPLETE, 'Booked! Your code is '.$appointment->booking_code.'.',
+        return $this->respond($c, State::BOOKING_COMPLETE, 'Booking confirmed.',
             $this->menuChoices(), [], ['appointment' => $this->appointmentSummary($appointment)]);
     }
 

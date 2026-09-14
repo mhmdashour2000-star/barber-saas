@@ -84,11 +84,205 @@ class WhatsappFoundationTest extends TestCase
         $this->send('book');
         $this->send('service:'.$this->service->id);
         $this->send($any ? 'any' : 'employee:'.$this->employee->id);
-        $this->send('day:'.$day);
-        $response = $this->send('time:12:00');
+        $times = $this->send('day:'.$day);
+        $response = $this->selectOfferedTime($times, '12:00');
         $this->assertSame('confirm_booking', $this->state());
         $this->assertSame('confirmation', $response->type);
         return $response;
+    }
+
+    private function selectOfferedTime(ConversationResponse $page, string $time): ConversationResponse
+    {
+        for ($i = 0; $i < 20; $i++) {
+            if (in_array($time, array_column($page->choices, 'label'), true)) return $this->send('time:'.$time);
+            if (!in_array('More times', array_column($page->choices, 'label'), true)) break;
+            $page = $this->send('time_page:next');
+        }
+        $this->fail('Requested time was not offered on any page.');
+    }
+
+    private function timePage(bool $any = true): ConversationResponse
+    {
+        $this->send('menu');
+        $this->send('book');
+        $this->send('service:'.$this->service->id);
+        $this->send($any ? 'any' : 'employee:'.$this->employee->id);
+        return $this->send('day:2030-01-08');
+    }
+
+    private function rendered(ConversationResponse $response): array
+    {
+        return app(\App\Whatsapp\Meta\ResponseRenderer::class)->render($response);
+    }
+
+    public static function shortTimeSets(): array { return [['10:00', 2], ['12:00', 10]]; }
+
+    #[DataProvider('shortTimeSets')]
+    public function test_small_time_set_is_exactly_one_list_even_with_two_options(string $closing, int $count): void
+    {
+        $this->service->weeklyAvailabilities()->update(['end_time' => $closing]);
+        $response = $this->timePage();
+        $parts = $this->rendered($response);
+        $this->assertCount(1, $parts);
+        $this->assertSame('list', $parts[0]['interactive']['type']);
+        $this->assertSame('Available times', $parts[0]['interactive']['header']['text']);
+        $rows = $parts[0]['interactive']['action']['sections'][0]['rows'];
+        $this->assertCount($count, $rows);
+        $this->assertSame('09:00', $rows[0]['title']);
+        $this->assertNotContains('More times', array_column($rows, 'title'));
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_large_time_set_next_previous_navigation_stays_in_one_list(): void
+    {
+        $first = $this->timePage(false);
+        $this->assertCount(9, $first->choices); // Eight times plus next page.
+        $this->assertSame('More times', $first->choices[8]['label']);
+        $next = app(InboundMessageProcessor::class)->handle($this->input($first->choices[8]['id'], type: 'list'));
+        $this->assertSame('11:00', $next->choices[0]['label']);
+        $this->assertCount(10, $next->choices); // Eight times plus both directions.
+        $this->assertCount(1, $this->rendered($next));
+        $this->assertSame('select_time', $this->state());
+        $back = $this->send('time_page:previous');
+        $this->assertSame(array_column($first->choices, 'label'), array_column($back->choices, 'label'));
+        $this->assertNotSame($first->choices[0]['id'], $back->choices[0]['id']);
+        $context = $this->company->whatsappConversations()->sole()->context;
+        $this->assertSame($this->service->id, $context['service_id']);
+        $this->assertSame($this->employee->id, $context['employee_id']);
+        $this->assertSame('2030-01-08', $context['day']);
+        $this->assertDatabaseCount('appointments', 0);
+        $this->assertDatabaseCount('customer_violations', 0);
+    }
+
+    public function test_page_navigation_requeries_availability_and_clamps_after_slots_disappear(): void
+    {
+        $this->timePage(); $this->send('time_page:next'); $this->send('time_page:next');
+        $this->service->weeklyAvailabilities()->update(['end_time' => '10:00']);
+        $response = $this->send('time_page:previous');
+        $this->assertSame(['09:00', '09:15'], array_column($response->choices, 'label'));
+        $this->assertSame(0, $this->company->whatsappConversations()->sole()->context['time_page']);
+        $this->assertCount(1, $this->rendered($response));
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_stale_page_button_and_unoffered_time_cannot_advance_to_confirmation(): void
+    {
+        $first = $this->timePage();
+        $this->send('time_page:next');
+        $stale = app(InboundMessageProcessor::class)->handle($this->input($first->choices[0]['id'], type: 'list'));
+        $this->assertSame('select_time', $this->state());
+        $this->assertCount(1, $this->rendered($stale));
+        $this->send('time:23:45');
+        $this->send('time_page:999');
+        $this->send('confirm');
+        $this->assertSame('select_time', $this->state());
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_confirmation_is_one_message_with_name_barber_local_date_and_only_final_actions(): void
+    {
+        $response = $this->confirmation(false);
+        $parts = $this->rendered($response);
+        $this->assertCount(1, $parts);
+        $body = $parts[0]['interactive']['body']['text'];
+        foreach (['Name: Client', 'Service: Haircut', 'Barber: First', 'Date: Tuesday 8 January 2030', 'Time: 12:00', 'Europe/Istanbul'] as $text) {
+            $this->assertStringContainsString($text, $body);
+        }
+        $this->assertSame(['Confirm booking', 'Cancel'], array_column(array_column($parts[0]['interactive']['action']['buttons'], 'reply'), 'title'));
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_any_barber_is_not_preassigned_and_success_shows_actual_assignment_once(): void
+    {
+        $confirmation = $this->confirmation();
+        $body = $this->rendered($confirmation)[0]['interactive']['body']['text'];
+        $this->assertStringContainsString('Any Available Barber (assigned when you confirm)', $body);
+        $this->assertStringNotContainsString('Barber: First', $body);
+        $this->assertNull($this->company->whatsappConversations()->sole()->context['employee_id']);
+        $this->book(); // First employee is now occupied; preserve existing Any fallback.
+        $processor = app(InboundMessageProcessor::class);
+        $input = $this->input($confirmation->choices[0]['id'], 'one-confirm', type: 'button');
+        $success = $processor->handle($input);
+        $this->assertEquals($success, $processor->handle($input));
+        $processor->handle($this->input($confirmation->choices[0]['id'], 'another-confirm', type: 'button'));
+        $this->assertSame(2, $this->company->appointments()->count()); // One competing booking, one new booking.
+        $created = $this->company->appointments()->latest('id')->first();
+        $this->assertSame($this->second->id, $created->employee_id);
+        $this->assertSame('2030-01-08 09:00:00', $created->getRawOriginal('starts_at'));
+        $parts = $this->rendered($success);
+        $this->assertCount(1, $parts);
+        $body = $parts[0]['interactive']['body']['text'];
+        foreach (['Barber: Second', 'Service: Haircut', 'Tuesday 8 January 2030', 'Time: 12:00'] as $text) $this->assertStringContainsString($text, $body);
+        $this->assertSame(1, substr_count($body, $created->booking_code));
+    }
+
+    public function test_slot_taken_before_selection_refreshes_a_single_page(): void
+    {
+        $this->timePage(false); $page = $this->send('time_page:next');
+        $this->assertContains('12:00', array_column($page->choices, 'label'));
+        $this->book();
+        $response = $this->send('time:12:00');
+        $this->assertStringContainsString('no longer available', $response->text);
+        $this->assertSame('select_time', $this->state());
+        $this->assertNotContains('12:00', array_column($response->choices, 'label'));
+        $this->assertCount(1, $this->rendered($response));
+        $this->assertDatabaseCount('appointments', 1);
+    }
+
+    public function test_confirm_race_refreshes_one_list_and_repeated_old_confirm_cannot_book(): void
+    {
+        $confirmation = $this->confirmation(false);
+        $this->book();
+        $oldId = $confirmation->choices[0]['id'];
+        $response = app(InboundMessageProcessor::class)->handle($this->input($oldId, type: 'button'));
+        $this->assertStringContainsString('no longer be available', $response->text);
+        $this->assertCount(1, $this->rendered($response));
+        $this->assertSame('list', $response->type);
+        app(InboundMessageProcessor::class)->handle($this->input($oldId, type: 'button'));
+        $this->assertSame('select_time', $this->state());
+        $this->assertDatabaseCount('appointments', 1);
+    }
+
+    public function test_final_cancel_clears_attempt_without_cancellation_or_violation(): void
+    {
+        $confirmation = $this->confirmation(false);
+        app(InboundMessageProcessor::class)->handle($this->input($confirmation->choices[1]['id'], type: 'button'));
+        $this->assertSame('main_menu', $this->state());
+        $context = $this->company->whatsappConversations()->sole()->context;
+        foreach (['service_id', 'employee_id', 'day', 'time', 'offer', 'time_page'] as $key) $this->assertArrayNotHasKey($key, $context);
+        $this->assertDatabaseCount('appointments', 0);
+        $this->assertDatabaseCount('appointment_events', 0);
+        $this->assertDatabaseCount('customer_violations', 0);
+    }
+
+    public function test_time_page_context_cannot_reference_another_salons_employee(): void
+    {
+        $page = $this->timePage();
+        $other = $this->company('B');
+        $foreign = $other->employees()->create(['name' => 'Foreign', 'username' => 'foreign-page', 'password' => 'test-password', 'active' => true]);
+        $conversation = $this->company->whatsappConversations()->sole();
+        $conversation->update(['context' => array_replace($conversation->context, ['employee_id' => $foreign->id])]);
+        $response = $this->send('time_page:next');
+        $this->assertSame('main_menu', $this->state());
+        $this->assertStringNotContainsString('Foreign', $response->text);
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_interactive_time_choices_are_scoped_to_customer_and_company(): void
+    {
+        $page = $this->timePage();
+        $other = $this->company('B');
+        $other->customers()->create(['name' => 'Other Client', 'phone' => $this->customer->phone, 'active' => true]);
+        $processor = app(InboundMessageProcessor::class);
+        $processor->handle($this->input('menu', company: $other));
+        $processor->handle($this->input($page->choices[0]['id'], company: $other, type: 'list'));
+        $this->assertSame('main_menu', $other->whatsappConversations()->sole()->state);
+        $this->company->customers()->create(['name' => 'Second Client', 'phone' => '+12025550101', 'active' => true]);
+        $processor->handle($this->input('menu', phone: '+12025550101'));
+        $processor->handle($this->input($page->choices[0]['id'], phone: '+12025550101', type: 'list'));
+        $this->assertSame('main_menu', $this->company->whatsappConversations()->where('customer_id', '!=', $this->customer->id)->sole()->state);
+        $this->assertSame('select_time', $this->state());
+        $this->assertDatabaseCount('appointments', 0);
     }
 
     private function book(string $day = '2030-01-08', ?Customer $customer = null)
@@ -182,7 +376,13 @@ class WhatsappFoundationTest extends TestCase
         $this->assertStringNotContainsString('2030-01-08', $ids);
         $this->assertStringNotContainsString('2030-01-10', $ids);
         $times = $this->send('day:2030-01-09');
-        $this->assertSame(app(AvailabilityService::class)->getBookableSlots($this->service, Carbon::parse('2030-01-09', 'Europe/Istanbul')), array_column($times->choices, 'label'));
+        $offered = [];
+        do {
+            $offered = array_merge($offered, array_values(array_filter(array_column($times->choices, 'label'), fn ($label) => preg_match('/^\d{2}:\d{2}$/D', $label))));
+            $more = in_array('More times', array_column($times->choices, 'label'), true);
+            if ($more) $times = $this->send('time_page:next');
+        } while ($more);
+        $this->assertSame(app(AvailabilityService::class)->getBookableSlots($this->service, Carbon::parse('2030-01-09', 'Europe/Istanbul')), $offered);
     }
 
     public function test_confirmation_creates_once_with_snapshots_utc_and_customer_actor(): void

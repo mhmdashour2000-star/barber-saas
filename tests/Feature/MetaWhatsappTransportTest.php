@@ -231,6 +231,31 @@ class MetaWhatsappTransportTest extends TestCase
         $this->assertStringContainsString('Europe/Istanbul', $parts[0]['interactive']['body']['text']);
     }
 
+    public function test_paginated_time_response_uses_existing_jobs_to_send_only_one_list(): void
+    {
+        $this->postSigned($this->payload())->assertOk();
+        $r = WhatsappInboundMessage::sole();
+        $choices = [];
+        for ($i = 0; $i < 8; $i++) $choices[] = ['id' => '1:2:time:'.sprintf('10:%02d', $i), 'label' => sprintf('10:%02d', $i)];
+        $choices[] = ['id' => '1:2:time_page:next', 'label' => 'More times'];
+        $r->update(['status' => 'processed', 'response' => (new ConversationResponse('list', 'Choose a time (Europe/Istanbul). Page 1 of 3.',
+            $choices, ['title' => 'Available times']))->jsonSerialize()]);
+        $this->process(); $this->process(); $this->send(); $this->send();
+        $this->assertDatabaseCount('whatsapp_outbound_messages', 1);
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request['interactive']['type'] === 'list'
+            && $request['interactive']['header']['text'] === 'Available times'
+            && count($request['interactive']['action']['sections'][0]['rows']) === 9
+            && $request['interactive']['action']['sections'][0]['rows'][0]['title'] === '10:00');
+    }
+
+    public function test_paginated_renderer_rejects_oversized_page_instead_of_sending_multiple_messages(): void
+    {
+        $choices = array_fill(0, 11, ['id' => '1:2:time:12:00', 'label' => '12:00']);
+        $this->expectException(\InvalidArgumentException::class);
+        app(ResponseRenderer::class)->render(new ConversationResponse('list', 'Choose', $choices));
+    }
+
     public function test_renderer_groups_all_choices_and_respects_limits(): void
     {
         $choices = [];

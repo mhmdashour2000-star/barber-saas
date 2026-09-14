@@ -17,6 +17,7 @@ class ResponseRenderer
         $choices = array_values($response->choices);
         $messages = [];
         if (!$choices) return $this->texts($text);
+        if ($response->type === 'list') return [$this->choicePage($response, $text, $choices)];
         // Full labels in a numbered text legend keep long/truncated titles unambiguous.
         if (count($choices) > 3 || collect($choices)->contains(fn ($c) => mb_strlen($c['label']) > 20)) {
             $text .= "\n".implode("\n", array_map(fn ($c, $i) => ($i + 1).'. '.$c['label'], $choices, array_keys($choices)));
@@ -67,12 +68,44 @@ class ResponseRenderer
         return $parts;
     }
 
+    /** One already-paginated domain response becomes exactly one Meta list, including navigation. */
+    private function choicePage(ConversationResponse $response, string $text, array $choices): array
+    {
+        if (count($choices) > 10 || mb_strlen($text) > 1024) {
+            throw new \InvalidArgumentException('Choice page exceeds interactive limits.');
+        }
+        $rows = [];
+        foreach ($choices as $choice) {
+            if (!is_string($choice['id']) || $choice['id'] === '' || strlen($choice['id']) > 200
+                || trim($choice['id']) !== $choice['id'] || !is_string($choice['label'])
+                || $choice['label'] === '' || mb_strlen($choice['label']) > 24) {
+                throw new \InvalidArgumentException('Invalid paginated choice.');
+            }
+            $rows[] = ['id' => $choice['id'], 'title' => $choice['label']];
+        }
+        return ['type' => 'interactive', 'interactive' => ['type' => 'list',
+            'header' => ['type' => 'text', 'text' => mb_substr($response->data['title'] ?? 'Choose an option', 0, 60)],
+            'body' => ['text' => $text], 'action' => ['button' => 'Choose a time',
+                'sections' => [['title' => 'Available times', 'rows' => $rows]]]]];
+    }
+
     private function summary(array $data): string
     {
-        $labels = ['booking_code' => 'Booking', 'customer_name' => 'Customer', 'service' => 'Service', 'barber' => 'Barber',
+        $labels = ['booking_code' => 'Booking', 'customer_name' => 'Name', 'service' => 'Service', 'barber' => 'Barber',
             'date' => 'Date', 'time' => 'Time', 'timezone' => 'Timezone', 'duration_minutes' => 'Minutes', 'status' => 'Status'];
         $lines = [];
-        foreach ($labels as $key => $label) if (isset($data[$key])) $lines[] = $label.': '.$data[$key];
+        foreach ($labels as $key => $label) {
+            if (!isset($data[$key])) continue;
+            $value = $data[$key];
+            if ($key === 'date' && is_string($value) && \Carbon\Carbon::hasFormat($value, 'Y-m-d')) {
+                $value = \Carbon\Carbon::createFromFormat('!Y-m-d', $value, $data['timezone'] ?? 'Europe/Istanbul')
+                    ->locale(app()->getLocale())->translatedFormat('l j F Y');
+            }
+            if ($key === 'barber' && ($data['barber_assignment'] ?? null) === 'on_confirmation') {
+                $value .= ' (assigned when you confirm)';
+            }
+            $lines[] = $label.': '.$value;
+        }
         if (isset($data['price_minor_units'])) $lines[] = 'Price: '.number_format($data['price_minor_units'] / 100, 2, '.', '');
         return implode("\n", $lines);
     }
