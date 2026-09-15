@@ -69,6 +69,7 @@
     @endif
 
     <!-- Main Settings Form -->
+    <a href="{{ route('company.password.edit') }}" class="mb-6 inline-flex rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-blue-700">Change manager password</a>
     <form action="{{ route('company.settings.update') }}" method="POST" class="space-y-8">
         @csrf
         @method('PUT')
@@ -268,13 +269,21 @@
         </div>
 
         <section class="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 class="text-lg font-semibold">WhatsApp bookings</h2>
+            <h2 class="text-lg font-semibold">Bookings and WhatsApp</h2>
+            <input type="hidden" name="accepting_new_bookings" value="0">
+            <label class="mt-4 flex items-center gap-2">
+                <input type="checkbox" name="accepting_new_bookings" value="1" @checked(old('accepting_new_bookings', $company->accepting_new_bookings))>
+                <span>Accept new bookings</span>
+            </label>
+            <p class="mt-2 text-sm text-gray-500">Turn off to pause new appointments. Existing bookings are preserved; customers can still check or cancel them while WhatsApp remains enabled.</p>
+            @error('accepting_new_bookings')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
             <p class="mt-1 text-sm text-gray-500">Provider configuration: {{ app(\App\Whatsapp\Meta\Configuration::class)->complete($company) ? 'Complete — live connectivity has not been verified here.' : 'Incomplete — contact your system administrator.' }}</p>
             <input type="hidden" name="whatsapp_enabled" value="0">
             <label class="mt-4 flex items-center gap-2">
                 <input type="checkbox" name="whatsapp_enabled" value="1" @checked(old('whatsapp_enabled', $company->whatsapp_enabled))>
-                <span>Enable WhatsApp bookings</span>
+                <span>Enable WhatsApp channel</span>
             </label>
+            <p class="mt-2 text-sm text-gray-500">Turning off the channel stops the entire bot, including appointment inquiries and cancellations.</p>
             @error('whatsapp_enabled')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
             <label for="whatsapp_phone_number" class="mt-4 block text-sm font-medium">Salon WhatsApp number</label>
             <input id="whatsapp_phone_number" name="whatsapp_phone_number" type="tel" maxlength="30"

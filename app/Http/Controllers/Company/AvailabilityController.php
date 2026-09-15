@@ -55,7 +55,7 @@ class AvailabilityController extends Controller
         $validated = $request->validated();
 
         try {
-            DB::transaction(function () use ($company, $validated) {
+            app(\App\Services\AvailabilityChangeService::class)->apply($request, $company, $validated, function () use ($company, $validated) {
                 /** @var AvailabilityException $exception */
                 $exception = $company->availabilityExceptions()->create([
                     'type' => $validated['type'],
@@ -115,7 +115,7 @@ class AvailabilityController extends Controller
         $dateStr = $exception->date->format('Y-m-d');
         $typeStr = $exception->type;
 
-        $exception->delete();
+        app(\App\Services\AvailabilityChangeService::class)->apply($request, $company, [], fn () => $exception->delete());
 
         AuditLog::record(
             'availability.exception.deleted',
@@ -168,7 +168,7 @@ class AvailabilityController extends Controller
         $service = $company->services()->findOrFail($serviceId);
         $days = $request->validated('days');
 
-        DB::transaction(function () use ($service, $days) {
+        app(\App\Services\AvailabilityChangeService::class)->apply($request, $company, ['days' => $days], function () use ($service, $days) {
             // Remove existing weekly availability records for clean replacement
             $service->weeklyAvailabilities()->delete();
 
@@ -242,7 +242,7 @@ class AvailabilityController extends Controller
         $employee = $company->employees()->findOrFail($employeeId);
         $days = $request->validated('days');
 
-        DB::transaction(function () use ($employee, $days) {
+        app(\App\Services\AvailabilityChangeService::class)->apply($request, $company, ['days' => $days], function () use ($employee, $days) {
             $employee->weeklyAvailabilities()->delete();
 
             foreach ($days as $day => $windows) {

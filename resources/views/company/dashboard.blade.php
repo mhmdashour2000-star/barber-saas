@@ -88,6 +88,17 @@
         </div>
     </div>
 
+    <section class="mb-8" aria-labelledby="appointment-summary">
+        <h2 id="appointment-summary" class="text-lg font-bold text-gray-900">Appointments</h2>
+        <p class="mb-4 text-sm text-gray-500">Today means appointments starting today in Europe/Istanbul, by current status. Upcoming confirmed includes all future start times, including later today.</p>
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            @foreach($appointmentStats as $label => $count)
+                <div class="rounded-xl border border-gray-200 bg-white p-4"><p class="text-sm text-gray-500">{{ $label }}</p><p class="mt-2 text-2xl font-bold">{{ $count }}</p></div>
+            @endforeach
+        </div>
+        <a href="{{ route('company.appointments.index', ['filter' => 'today']) }}" class="mt-3 inline-block text-sm font-semibold text-blue-700">View today’s appointments</a>
+    </section>
+
     <!-- Employee Overview & Statistics Section -->
     <div class="mb-8">
         <div class="flex items-center justify-between mb-4">

@@ -517,6 +517,31 @@ class WhatsappFoundationTest extends TestCase
         $this->assertSame('First', $appointment->fresh()->employee_name_snapshot);
     }
 
+    public function test_booking_pause_keeps_inquiry_and_cancellation_available_but_blocks_creation(): void
+    {
+        $appointment = $this->book('2030-01-09');
+        $this->company->update(['accepting_new_bookings' => false]);
+        $this->send('menu');
+        $this->assertStringContainsString('not accepting new bookings', $this->send('book')->text);
+        $this->assertCount(1, $this->send('inquiry')->data['appointments']);
+        $this->send('cancel'); $this->send('appointment:'.$appointment->id); $this->send('confirm');
+        $this->assertSame(AppointmentStatus::CANCELLED_BY_CUSTOMER, $appointment->fresh()->status);
+        $this->assertDatabaseCount('appointments', 1);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->book();
+    }
+
+    public function test_pause_after_selection_blocks_confirmation_and_resuming_restores_booking(): void
+    {
+        $confirmation = $this->confirmation();
+        $this->company->update(['accepting_new_bookings' => false]);
+        $this->assertStringContainsString('not accepting new bookings', $this->send('confirm')->text);
+        $this->assertDatabaseCount('appointments', 0);
+        $this->company->update(['accepting_new_bookings' => true]);
+        $this->confirmation(); $this->send('confirm');
+        $this->assertDatabaseCount('appointments', 1);
+    }
+
     public function test_inquiry_is_customer_scoped_and_uses_snapshots(): void
     {
         $own = $this->book();

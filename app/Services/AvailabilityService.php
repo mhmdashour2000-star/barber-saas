@@ -74,7 +74,7 @@ class AvailabilityService
      *
      * @return array<int, array{start: string, end: string}>
      */
-    public function getEffectiveServiceWindows(Service $service, Carbon $targetDate): array
+    public function getEffectiveServiceWindows(Service $service, Carbon $targetDate, bool $ignoreBookingHorizon = false): array
     {
         $company = $service->company;
 
@@ -89,7 +89,7 @@ class AvailabilityService
         }
 
         // 3. Date must be within horizon
-        if (!$this->isDateWithinHorizon($company, $targetDate)) {
+        if (!$ignoreBookingHorizon && !$this->isDateWithinHorizon($company, $targetDate)) {
             return [];
         }
 

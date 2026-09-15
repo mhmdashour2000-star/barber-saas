@@ -65,6 +65,8 @@ class RegisterController extends Controller
         });
 
         Auth::login($user);
+        $request->session()->regenerate();
+        $request->session()->put('password_hash_web', $user->password);
 
         return redirect()->route('company.dashboard')->with('status', 'Welcome! Your salon account has been created successfully and is pending review.');
     }

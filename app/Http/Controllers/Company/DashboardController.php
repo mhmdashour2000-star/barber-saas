@@ -37,6 +37,15 @@ class DashboardController extends Controller
             })->count() : 0,
         ];
 
-        return view('company.dashboard', compact('user', 'company', 'employeeStats', 'serviceStats', 'customerStats'));
+        $start = \Carbon\Carbon::now(\App\Services\AvailabilityService::TIMEZONE)->startOfDay()->utc();
+        $end = $start->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->addDay()->utc();
+        $todayQuery = $company?->appointments()->where('starts_at', '>=', $start)->where('starts_at', '<', $end);
+        $appointmentStats = ['Today’s appointments' => $todayQuery ? (clone $todayQuery)->count() : 0];
+        foreach (['Completed today' => ['completed'], 'Cancelled today' => ['cancelled_by_customer', 'cancelled_by_company'], 'No-show today' => ['no_show']] as $label => $statuses) {
+            $appointmentStats[$label] = $todayQuery ? (clone $todayQuery)->whereIn('status', $statuses)->count() : 0;
+        }
+        $appointmentStats['Upcoming confirmed'] = $company ? $company->appointments()->where('status', 'confirmed')->where('starts_at', '>=', now())->count() : 0;
+
+        return view('company.dashboard', compact('user', 'company', 'employeeStats', 'serviceStats', 'customerStats', 'appointmentStats'));
     }
 }

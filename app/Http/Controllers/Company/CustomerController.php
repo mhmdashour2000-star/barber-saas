@@ -96,8 +96,11 @@ class CustomerController extends Controller
 
         $activeBlock = $customer->activeBlock();
         $qualifyingViolationsCount = $this->restrictionService->getActiveViolationCount($customer);
+        $appointments = $company->appointments()->where('customer_id', $customer->id)
+            ->with(['employee' => fn ($query) => $query->where('company_id', $company->id)])
+            ->orderByDesc('starts_at')->orderByDesc('id')->paginate(10, ['*'], 'appointments_page');
 
-        return view('company.customers.show', compact('customer', 'company', 'activeBlock', 'qualifyingViolationsCount'));
+        return view('company.customers.show', compact('customer', 'company', 'activeBlock', 'qualifyingViolationsCount', 'appointments'));
     }
 
     /**

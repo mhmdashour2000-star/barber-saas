@@ -15,6 +15,7 @@ class Company extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_PENDING = 'pending';
     public const STATUS_SUSPENDED = 'suspended';
+    protected $attributes = ['accepting_new_bookings' => true];
 
     protected $fillable = [
         'code',
@@ -29,6 +30,7 @@ class Company extends Model
         'violation_limit',
         'block_duration_days',
         'whatsapp_enabled',
+        'accepting_new_bookings',
         'whatsapp_phone_number',
     ];
 
@@ -41,6 +43,7 @@ class Company extends Model
     {
         return [
             'whatsapp_enabled' => 'boolean',
+            'accepting_new_bookings' => 'boolean',
             'booking_days_ahead' => 'integer',
             'late_cancellation_hours' => 'integer',
             'violation_limit' => 'integer',

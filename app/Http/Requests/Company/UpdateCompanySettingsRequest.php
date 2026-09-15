@@ -32,6 +32,7 @@ class UpdateCompanySettingsRequest extends FormRequest
     {
         return [
             'whatsapp_enabled' => ['sometimes', 'boolean'],
+            'accepting_new_bookings' => ['sometimes', 'boolean'],
             'whatsapp_phone_number' => ['nullable', 'required_if:whatsapp_enabled,1', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/D',
                 \Illuminate\Validation\Rule::unique('companies', 'whatsapp_phone_number')->ignore($this->user()->company?->id)],
             'whatsapp_phone_number_id' => ['prohibited'],

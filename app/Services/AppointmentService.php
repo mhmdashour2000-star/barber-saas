@@ -55,6 +55,14 @@ class AppointmentService
                     $service = $company->services()->findOrFail($data['service_id']);
                     $employee = $this->resolveAndLockEmployee($company, $service->id, $data['employee_id'] ?? null, $startsAt);
 
+                    // Read the business switch after the employee mutex, independently of
+                    // WhatsApp transport. A paused company may still manage existing bookings.
+                    $company = Company::whereKey($company->id)->sharedLock()->firstOrFail();
+                    $this->assertActiveCompany($company);
+                    if (!$company->accepting_new_bookings) {
+                        throw new InvalidArgumentException('This salon is not accepting new bookings.');
+                    }
+
                     // All authoritative checks take place after the employee mutex is held.
                     $service = $company->services()->sharedLock()->findOrFail($service->id);
                     $customer = $company->customers()->lockForUpdate()->findOrFail($data['customer_id']);

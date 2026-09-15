@@ -9,6 +9,7 @@
                     <p class="text-sm text-gray-500 mt-1">Access your salon management dashboard</p>
                 </div>
 
+                <a href="{{ route('manager.password.request') }}" class="mb-4 inline-block text-sm text-blue-700 underline">Forgot your manager password?</a>
                 @if ($errors->any())
                     <div class="p-4 mb-6 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">
                         <ul class="list-disc list-inside space-y-1">

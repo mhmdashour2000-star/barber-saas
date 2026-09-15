@@ -124,6 +124,23 @@
 
         <!-- Right: Violation & Block History -->
         <div class="lg:col-span-2 space-y-6">
+            <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 class="mb-4 text-base font-bold">Appointment history</h2>
+                <p class="mb-3 text-xs text-gray-500">Newest appointment first · Europe/Istanbul</p>
+                <div class="space-y-4">
+                    @forelse($appointments as $appointment)
+                        <article class="rounded-lg border border-gray-200 p-4">
+                            <a class="font-semibold text-blue-700 underline" href="{{ route('company.appointments.show', $appointment) }}">{{ $appointment->booking_code }}</a>
+                            <span class="ml-2 inline-block rounded-full px-2 py-1 text-xs {{ $appointment->status->badgeClass() }}">{{ $appointment->status->label() }}</span>
+                            <p class="mt-2 break-words">{{ $appointment->service_name_snapshot }} · {{ $appointment->employee?->name ?? 'Unavailable' }}</p>
+                            <p class="text-sm text-gray-600">{{ $appointment->starts_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('d M Y H:i') }}</p>
+                        </article>
+                    @empty
+                        <p class="text-sm text-gray-500">No appointment history for this customer.</p>
+                    @endforelse
+                </div>
+                <div class="mt-4">{{ $appointments->links() }}</div>
+            </section>
             <!-- Violations History -->
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="p-4 border-b border-gray-200 flex items-center justify-between">

@@ -47,6 +47,11 @@ class ConversationEngine
         }
 
         $action = $this->selectedAction($conversation, $message);
+        if (!$company->accepting_new_bookings && ($action === 'book' || in_array($state, [
+            State::SELECT_SERVICE, State::SELECT_BARBER, State::SELECT_DAY, State::SELECT_TIME, State::CONFIRM_BOOKING,
+        ], true))) {
+            return $this->menu($conversation, 'This salon is not accepting new bookings. You can still view or cancel existing appointments.');
+        }
         try {
             if ($action === null) {
                 if ($state === State::SELECT_TIME) {
@@ -242,6 +247,9 @@ class ConversationEngine
                 $this->restrictions->assertCanBook($customer);
             } catch (InvalidArgumentException) {
                 return $this->menu($c, 'You cannot book while inactive or blocked. You can still view or cancel your appointments.');
+            }
+            if (!$company->fresh()->accepting_new_bookings) {
+                return $this->menu($c, 'This salon is not accepting new bookings. You can still view or cancel existing appointments.');
             }
             return $this->times($c, $service, $context, 'The selected time could not be booked and may no longer be available. Please choose again. ');
         }

@@ -44,11 +44,15 @@ Route::prefix('employee')->name('employee.')->group(function () {
 });
 
 Route::middleware('guest')->group(function () {
+    Route::get('/forgot-password', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'forgot'])->name('manager.password.request');
+    Route::post('/forgot-password', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'email'])->middleware('throttle:manager-recovery')->name('manager.password.email');
+    Route::get('/reset-password/{token}', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'resetForm'])->name('manager.password.reset');
+    Route::post('/reset-password', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'reset'])->middleware('throttle:manager-recovery')->name('manager.password.update');
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
 
     Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register']);
+    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:registration');
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
@@ -58,7 +62,9 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 | Company Manager Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['company'])->prefix('company')->name('company.')->group(function () {
+Route::middleware(['company', 'auth.session'])->prefix('company')->name('company.')->group(function () {
+    Route::get('/password', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'edit'])->name('password.edit');
+    Route::put('/password', [\App\Http\Controllers\Auth\ManagerPasswordController::class, 'change'])->middleware('throttle:6,1')->name('password.change');
     // Appointment management deliberately has no creation, editing, or deletion routes.
     Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
     Route::get('/appointments/{appointment}', [AppointmentController::class, 'show'])->whereNumber('appointment')->name('appointments.show');

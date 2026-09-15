@@ -49,6 +49,7 @@ class LoginController extends Controller
             }
 
             $company = $user->company;
+            $request->session()->put('password_hash_web', $user->password);
             AuditLog::record('manager.login', 'Company manager logged in.', $user->id, $company?->id);
             return redirect()->intended(route('company.dashboard'));
         }
