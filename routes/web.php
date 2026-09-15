@@ -30,6 +30,19 @@ Route::withoutMiddleware([
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::view('/privacy-policy', 'public.privacy-policy')->name('privacy-policy');
 
+Route::prefix('employee')->name('employee.')->group(function () {
+    Route::get('/login', [\App\Http\Controllers\Employee\AuthController::class, 'show'])->name('login');
+    Route::post('/login', [\App\Http\Controllers\Employee\AuthController::class, 'login']);
+    Route::post('/logout', [\App\Http\Controllers\Employee\AuthController::class, 'logout'])->name('logout');
+    Route::middleware('employee')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Employee\DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/password', [\App\Http\Controllers\Employee\AuthController::class, 'passwordForm'])->name('password');
+        Route::put('/password', [\App\Http\Controllers\Employee\AuthController::class, 'password'])->name('password.update');
+        Route::post('/appointments/{code}/complete', [\App\Http\Controllers\Employee\DashboardController::class, 'complete'])->name('appointments.complete');
+        Route::post('/appointments/{code}/no-show', [\App\Http\Controllers\Employee\DashboardController::class, 'noShow'])->name('appointments.no-show');
+    });
+});
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
@@ -59,6 +72,7 @@ Route::middleware(['company'])->prefix('company')->name('company.')->group(funct
     Route::match(['put', 'patch'], '/settings', [CompanySettingsController::class, 'update'])->name('settings.update');
 
     // Employee Management
+    Route::put('/employees/{employee}/password', [EmployeeController::class, 'resetPassword'])->whereNumber('employee')->name('employees.password');
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
     Route::get('/employees/create', [EmployeeController::class, 'create'])->name('employees.create');
     Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');

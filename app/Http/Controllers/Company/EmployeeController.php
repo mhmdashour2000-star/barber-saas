@@ -16,6 +16,20 @@ use Illuminate\Support\Facades\Auth;
 
 class EmployeeController extends Controller
 {
+    public function resetPassword(\App\Http\Requests\Company\ResetEmployeePasswordRequest $request, int $employeeId): RedirectResponse
+    {
+        $company = $request->user()->company;
+        $employee = $company->employees()->findOrFail($employeeId);
+        $password = $request->validated('password');
+        $employee->update(['password' => $password, 'must_change_password' => true]);
+        AuditLog::record('employee.password_reset', 'Employee login password reset.', $request->user()->id, $company->id);
+        return redirect()->route('company.employees.index')->with('status', 'Employee password reset successfully.')
+            ->with('new_employee_credentials', \App\Support\TemporaryEmployeeCredentials::encrypt($request, [
+                'name' => $employee->name, 'company_code' => $company->code,
+                'username' => $employee->username, 'password' => $password,
+            ]));
+    }
+
     /**
      * Display a listing of employees for the authenticated company.
      */

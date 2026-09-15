@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Employee extends Model
+class Employee extends Authenticatable
 {
     use HasFactory;
+
+    // Employee sessions deliberately do not offer persistent remember-me login.
+    protected $rememberTokenName = '';
 
     /**
      * The attributes that are mass assignable.

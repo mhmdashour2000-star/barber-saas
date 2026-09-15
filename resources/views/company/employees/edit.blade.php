@@ -117,11 +117,30 @@
         </form>
     </div>
 
+    <section class="mt-6 max-w-2xl rounded-xl border border-gray-200 bg-white p-6 sm:p-8">
+        <h2 class="text-lg font-bold text-gray-900">Employee login password</h2>
+        <p class="mt-2 text-sm text-gray-600">Login at <a class="text-blue-700 underline" href="{{ route('employee.login') }}">Employee login</a> using company code {{ $company->code }} and the username above. Resetting the password signs out existing employee sessions and requires a new password at next login.</p>
+        <form method="POST" action="{{ route('company.employees.password', $employee->id) }}" class="mt-5 space-y-4">
+            @csrf
+            @method('PUT')
+            <div>
+                <label for="reset_password" class="mb-2 block text-sm font-medium">Temporary password</label>
+                <input type="password" id="reset_password" name="password" required minlength="8" maxlength="255" autocomplete="new-password" class="block w-full rounded-lg border border-gray-300 p-3 focus:ring-blue-500">
+                @error('password')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+            </div>
+            <div>
+                <label for="reset_password_confirmation" class="mb-2 block text-sm font-medium">Confirm temporary password</label>
+                <input type="password" id="reset_password_confirmation" name="password_confirmation" required autocomplete="new-password" class="block w-full rounded-lg border border-gray-300 p-3 focus:ring-blue-500">
+            </div>
+            <button class="min-h-11 rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 focus:ring-4 focus:ring-blue-300">Reset login password</button>
+        </form>
+    </section>
+
     <!-- Separate Status Management Card -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 max-w-2xl mt-6">
         <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-2">Account Status</h3>
         <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-            Deactivating an employee prevents them from taking new appointments or shifts, but preserves historical salon records and data integrity.
+            Deactivating an employee disables login and operational access and prevents new appointments, while preserving historical salon records.
         </p>
 
         @if($employee->active)
