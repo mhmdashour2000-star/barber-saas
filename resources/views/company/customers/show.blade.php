@@ -33,6 +33,10 @@
             <!-- Restriction Status Card -->
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <h2 class="text-base font-bold text-gray-900 border-b border-gray-100 pb-2 mb-4">Booking Restriction Status</h2>
+                <p class="mb-3 text-xs text-gray-500">All times shown in Europe/Istanbul.</p>
+                @if(!$customer->active)
+                    <p class="mb-3 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">Inactive — not allowed to book. Lifting a block does not activate this account.</p>
+                @endif
 
                 <div class="mb-4">
                     @if($activeBlock)
@@ -44,10 +48,10 @@
                             <div class="text-xs mt-2 space-y-1 text-red-800">
                                 <div><span class="font-semibold">Reason:</span> {{ $activeBlock->reason }}</div>
                                 <div><span class="font-semibold">Source:</span> {{ ucfirst($activeBlock->source) }}</div>
-                                <div><span class="font-semibold">Started:</span> {{ $activeBlock->starts_at->format('M d, Y H:i') }}</div>
+                                <div><span class="font-semibold">Started:</span> {{ $activeBlock->starts_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, Y H:i') }}</div>
                                 <div>
                                     <span class="font-semibold">Expires:</span>
-                                    {{ $activeBlock->ends_at ? $activeBlock->ends_at->format('M d, Y H:i') : 'Indefinite' }}
+                                    {{ $activeBlock->ends_at ? $activeBlock->ends_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, Y H:i') : 'Indefinite' }}
                                 </div>
                             </div>
                         </div>
@@ -63,12 +67,14 @@
                             </form>
                         @endif
                     @else
-                        <div class="p-4 rounded-xl bg-green-50 border border-green-200 text-green-900">
+                        <div class="p-4 rounded-xl border {{ $customer->canBook() ? 'bg-green-50 border-green-200 text-green-900' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
                             <div class="flex items-center space-x-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-green-600"></span>
+                                <span class="w-2.5 h-2.5 rounded-full {{ $customer->canBook() ? 'bg-green-600' : 'bg-gray-500' }}"></span>
                                 <span class="font-bold text-sm uppercase tracking-wide">Clear (No Active Block)</span>
                             </div>
-                            <p class="text-xs text-green-800 mt-1">This client is currently permitted to book appointments.</p>
+                            @if($customer->canBook())
+                                <p class="text-xs text-green-800 mt-1">Allowed to book — this client is currently permitted to book appointments.</p>
+                            @endif
                             <div class="mt-2 text-xs text-gray-600">
                                 <span class="font-semibold">Active Cycle Violations:</span> {{ $qualifyingViolationsCount }} / {{ $company->violation_limit }}
                             </div>
@@ -102,6 +108,7 @@
 
                     <div class="mb-4">
                         <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="hidden" name="active" value="0">
                             <input type="checkbox" name="active" value="1" {{ old('active', $customer->active ? '1' : '0') == '1' ? 'checked' : '' }} class="sr-only peer">
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             <span class="ml-3 text-xs font-bold text-gray-700 uppercase tracking-wider">Account Active</span>
@@ -143,7 +150,7 @@
                                 @foreach($customer->violations as $v)
                                     <tr class="hover:bg-gray-50">
                                         <td class="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                                            {{ $v->occurred_at->format('M d, Y H:i') }}
+                                            {{ $v->occurred_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, Y H:i') }}
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded font-bold uppercase text-[10px] {{ $v->type === 'no_show' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' }}">
@@ -206,13 +213,13 @@
                                             {{ $block->reason }}
                                         </td>
                                         <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
-                                            {{ $block->starts_at->format('M d, Y H:i') }}
+                                            {{ $block->starts_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, Y H:i') }}
                                         </td>
                                         <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
                                             @if($block->lifted_at)
-                                                <span class="text-blue-600 font-semibold">Lifted {{ $block->lifted_at->format('M d, H:i') }}</span>
+                                                <span class="text-blue-600 font-semibold">Lifted {{ $block->lifted_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, H:i') }}</span>
                                             @elseif($block->ends_at)
-                                                <span>{{ $block->ends_at->format('M d, Y H:i') }}</span>
+                                                <span>{{ $block->ends_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, Y H:i') }}</span>
                                             @else
                                                 <span>Indefinite</span>
                                             @endif

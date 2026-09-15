@@ -128,6 +128,22 @@
                     </a>
                 </li>
 
+                @foreach([
+                    ['company.services.index', 'company.services.*', 'Services', 'M4 7h16M4 12h16M4 17h16'],
+                    ['company.customers.index', 'company.customers.*', 'Customers', 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M13 7a4 4 0 11-8 0 4 4 0 018 0'],
+                    ['company.availability.index', 'company.availability.*', 'Availability / Scheduling', 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z'],
+                ] as [$destination, $pattern, $label, $icon])
+                    <li>
+                        <a href="{{ route($destination) }}" title="{{ $label }}" @if(request()->routeIs($pattern)) aria-current="page" @endif
+                           class="sidebar-link flex items-center p-2.5 rounded-xl transition group {{ request()->routeIs($pattern) ? 'bg-blue-600 text-white font-semibold shadow-xs' : 'text-gray-700 hover:bg-gray-100' }}">
+                            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icon }}"></path>
+                            </svg>
+                            <span class="sidebar-text ml-3 text-sm">{{ $label }}</span>
+                        </a>
+                    </li>
+                @endforeach
+
                 <!-- Settings -->
                 <li>
                     <a href="{{ route('company.settings.edit') }}"

@@ -166,7 +166,7 @@ class AvailabilityController extends Controller
         }
 
         $service = $company->services()->findOrFail($serviceId);
-        $days = $request->input('days', []);
+        $days = $request->validated('days');
 
         DB::transaction(function () use ($service, $days) {
             // Remove existing weekly availability records for clean replacement
@@ -240,7 +240,7 @@ class AvailabilityController extends Controller
         }
 
         $employee = $company->employees()->findOrFail($employeeId);
-        $days = $request->input('days', []);
+        $days = $request->validated('days');
 
         DB::transaction(function () use ($employee, $days) {
             $employee->weeklyAvailabilities()->delete();

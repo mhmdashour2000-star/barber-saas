@@ -484,6 +484,39 @@ class WhatsappFoundationTest extends TestCase
         $this->assertSame('main_menu', $this->state());
     }
 
+    public function test_inquiry_uses_current_barber_after_manager_reassignment_and_preserves_original_snapshot(): void
+    {
+        $appointment = $this->book();
+        $this->assertSame($this->employee->id, $appointment->employee_id);
+        $this->actingAs($this->company->manager)->patch(route('company.appointments.reschedule', $appointment), [
+            'starts_at' => '2030-01-08T14:00', 'employee_id' => $this->second->id,
+        ])->assertRedirect(route('company.appointments.show', $appointment));
+        $this->send('menu');
+        $reply = $this->send('inquiry');
+        $this->assertSame('Second', $reply->data['appointments'][0]['barber']);
+        $this->assertSame('14:00', $reply->data['appointments'][0]['time']);
+        $this->assertStringContainsString('Barber: Second', json_encode($this->rendered($reply)));
+        $this->assertSame('First', $appointment->fresh()->employee_name_snapshot);
+        $this->assertSame($this->second->id, $appointment->fresh()->employee_id);
+        $this->send('cancel');
+        $summary = $this->send('appointment:'.$appointment->id);
+        $this->assertSame('Second', $summary->data['summary']['barber']);
+    }
+
+    public function test_whatsapp_summary_cannot_disclose_a_foreign_employee_from_a_corrupt_reference(): void
+    {
+        $appointment = $this->book();
+        $foreign = $this->company('FOREIGN')->employees()->create([
+            'name' => 'Private foreign barber', 'username' => 'foreign', 'password' => 'secret123', 'active' => true,
+        ]);
+        $appointment->update(['employee_id' => $foreign->id]);
+        $this->send('menu');
+        $reply = $this->send('inquiry');
+        $this->assertSame('Unavailable', $reply->data['appointments'][0]['barber']);
+        $this->assertStringNotContainsString('Private foreign barber', json_encode($reply));
+        $this->assertSame('First', $appointment->fresh()->employee_name_snapshot);
+    }
+
     public function test_inquiry_is_customer_scoped_and_uses_snapshots(): void
     {
         $own = $this->book();

@@ -32,13 +32,24 @@ class UpdateWeeklyScheduleRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        // HTML sends no days when all rows are removed. Only an explicit form
+        // submission may normalize absence; never coerce malformed supplied days.
+        if (!$this->exists('days') && $this->input('schedule_submitted') === '1') {
+            $this->merge(['days' => []]);
+        }
+    }
+
     public function rules(): array
     {
         return [
-            'days' => ['required', 'array'],
-            'days.*' => ['nullable', 'array'],
-            'days.*.*.start_time' => ['required_with:days.*.*.end_time', 'date_format:H:i'],
-            'days.*.*.end_time' => ['required_with:days.*.*.start_time', 'date_format:H:i'],
+            'schedule_submitted' => ['sometimes', 'in:1'],
+            'days' => ['present', 'array'],
+            'days.*' => ['array'],
+            'days.*.*' => ['array:start_time,end_time'],
+            'days.*.*.start_time' => ['required', 'date_format:H:i'],
+            'days.*.*.end_time' => ['required', 'date_format:H:i'],
         ];
     }
 
@@ -48,6 +59,9 @@ class UpdateWeeklyScheduleRequest extends FormRequest
     public function withValidator($validator)
     {
         $validator->after(function ($validator) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
             $days = $this->input('days', []);
 
             foreach ($days as $day => $windows) {
@@ -55,8 +69,7 @@ class UpdateWeeklyScheduleRequest extends FormRequest
                     continue;
                 }
 
-                $validDay = (int) $day;
-                if ($validDay < 1 || $validDay > 7) {
+                if (!preg_match('/^[1-7]$/D', (string) $day)) {
                     $validator->errors()->add("days.{$day}", "Invalid day of week {$day}. Must be between 1 and 7.");
                     continue;
                 }

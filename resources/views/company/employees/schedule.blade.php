@@ -44,6 +44,8 @@
         <form action="{{ route('company.employees.schedule.update', $employee->id) }}" method="POST">
             @csrf
             @method('PUT')
+            <input type="hidden" name="schedule_submitted" value="1">
+            <p class="px-6 pt-4 text-sm text-gray-500">Remove all windows and save to clear recurring weekly availability. Date exceptions and existing appointments are preserved.</p>
 
             <div class="p-6 sm:p-8 divide-y divide-gray-200">
                 @php

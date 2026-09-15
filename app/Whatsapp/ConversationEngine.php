@@ -294,7 +294,9 @@ class ConversationEngine
     private function appointmentSummary($a): array
     {
         return ['booking_code' => $a->booking_code, 'service' => $a->service_name_snapshot,
-            'barber' => $a->employee_name_snapshot, 'date' => $a->starts_at->copy()->setTimezone(AvailabilityService::TIMEZONE)->toDateString(),
+            // Current assignment is operational; the original snapshot remains immutable history.
+            'barber' => $a->company->employees()->whereKey($a->employee_id)->value('name') ?? 'Unavailable',
+            'date' => $a->starts_at->copy()->setTimezone(AvailabilityService::TIMEZONE)->toDateString(),
             'time' => $a->starts_at->copy()->setTimezone(AvailabilityService::TIMEZONE)->format('H:i'),
             'timezone' => AvailabilityService::TIMEZONE, 'status' => $a->status->value,
             'duration_minutes' => $a->service_duration_minutes_snapshot, 'price_minor_units' => $a->service_price_minor_units_snapshot];

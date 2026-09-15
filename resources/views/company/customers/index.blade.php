@@ -114,7 +114,7 @@
                                             Blocked
                                         </span>
                                         @if($activeBlock->ends_at)
-                                            <span class="text-[11px] text-red-600 block mt-0.5">Until {{ $activeBlock->ends_at->format('M d, H:i') }}</span>
+                                            <span class="text-[11px] text-red-600 block mt-0.5">Until {{ $activeBlock->ends_at->copy()->setTimezone(\App\Services\AvailabilityService::TIMEZONE)->format('M d, H:i') }} (Europe/Istanbul)</span>
                                         @else
                                             <span class="text-[11px] text-red-600 block mt-0.5">Indefinite</span>
                                         @endif
